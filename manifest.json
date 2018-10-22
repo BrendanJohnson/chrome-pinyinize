@@ -1,0 +1,27 @@
+{
+	"name": "Pinyin Captions",
+	"version": "0.8",
+	"manifest_version": 2,
+	"background": {
+	  "scripts": ["lib/chinese-tokenizer.js", "lib/jquery-2.0.2.js", "lib/sprintf.min.js", "lib/igo.min.js", "lib/zip.min.js", "lib/wanakana.min.js", "background.js", "lib/diff.js"],
+	  "persistent": false
+	},
+	"content_scripts": [ {
+		"js": ["hanzi_detect.js"],
+		"matches": ["http://*/*", "https://*/*"]
+	} ],
+	"description": "Adds pinyin or tone-only captions above Chinese Hanzi script",
+	"page_action": {
+		"default_title": "Toggle Pinyin"
+	},
+	"permissions": ["http://*/*", "https://*/*", "activeTab"],
+	"commands": {
+		"toggle-furigana": {
+			"suggested_key": {
+				"default": "Alt+Shift+F",
+				"mac": "Command+Shift+Y"
+			},
+			"description": "Toggle furigana"
+		}
+	}
+}
