@@ -1,6 +1,6 @@
 {
-	"name": "Pinyin Captions",
-	"version": "0.8",
+	"name": "Pinyinize",
+	"version": "0.9",
 	"manifest_version": 2,
 	"background": {
 	  "scripts": ["lib/chinese-tokenizer.js", "lib/jquery-2.0.2.js", "lib/sprintf.min.js", "lib/igo.min.js", "lib/zip.min.js", "lib/wanakana.min.js", "background.js", "lib/diff.js"],

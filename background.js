@@ -134,7 +134,7 @@ chrome.commands.onCommand.addListener(function(command) {
 	chrome.tabs.executeScript(null, {code:"toggleFurigana();"});
 });
 
-function addRuby(furiganized, kanji, yomi, key) {
+function addRuby(furiganized, traditionalHanzi, simplifiedHanzi, pinyin, key) {
 	// switch(localStorage.getItem("furigana_display")) {
 	// 	case "hira":
 	// 		yomi = wanakana.toHiragana(yomi);
@@ -145,58 +145,14 @@ function addRuby(furiganized, kanji, yomi, key) {
 	// 	default:
 	// 		break;
 	// }
-	// if(processed != "") {
-	// 	console.log('add ruby being run with processed');
-	// 	console.log(processed)
-	// }
-	// else {
-	// 	console.log('add ruby being run without processed');
-	// }
-	
-	// if(kanji == "的") {
-	// 	console.log("de: " + key)
-		
-	// }
-						
-	ruby_rxp = new RegExp(sprintf('<ruby><rb>%s<\\/rb><rp>\\(<\\/rp><rt>([\u3040-\u3096|\u30A1-\u30FA|\uFF66-\uFF9D|\u31F0-\u31FF]+)<\\/rt><rp>\\)<\\/rp><\\/ruby>', '%' + kanji + '%'), 'g');
-	ruby_rxp2 = new RegExp("<ruby><rb>(.+" + kanji + "|(" + kanji + ".{1,9})|(.{1,9}" + kanji + ".{1,9}))</rb><rp>\(</rp><rt>(.+)</rt><rp>\)</rp></ruby>", "g");
-	ruby_rxp3 = new RegExp(sprintf('<ruby><rb>(.+%s|(%s.{1,9})|(.{1,9}%s.{1,9}))<\\/rb><rp>\\(<\\/rp><rt>(.+)<\\/rt><rp>\\)<\\/rp><\\/ruby>', kanji, kanji, kanji), 'g');
+	var rxp = new RegExp(sprintf('<ruby><rb>(.+(%s|%s)|((%s|%s).{1,9})|(.{1,9}(%s|%s).{1,9}))<\\/rb><rp>\\(<\\/rp><rt>(.+)<\\/rt><rp>\\)<\\/rp><\\/ruby>', traditionalHanzi, simplifiedHanzi, traditionalHanzi, simplifiedHanzi, traditionalHanzi, simplifiedHanzi), 'g');
 
-	//if (!processed.includes(kanji)) {
-		// if(processed.indexOf("轟動香港") > -1) {
-		// 	console.log('touching the problematic')
-		// 	console.log(kanji);
-		// 	console.log(yomi);
-
-		// }
-
-
-
-		console.log('furiganizing: ' + kanji);
-		console.log(furiganized[key]);
-//		processed.push(kanji);
-
-		
-
-		console.log(sprintf('<ruby><rb>(.+%s|(%s.{1,9})|(.{1,9}%s.{1,9}))<\\/rb><rp>\\(<\\/rp><rt>(.+)<\\/rt><rp>\\)<\\/rp><\\/ruby>', kanji));
-	
-
-		if (furiganized[key].match(ruby_rxp3)) {
-			console.log('has a match')
-			console.log(kanji);
-			console.log(yomi);
-			furiganized[key] = furiganized[key].replace(new RegExp(sprintf('%s(?![^<rb><\/rb>]*<\/rb>)', kanji), 'g'), sprintf('<ruby><rb>%s</rb><rp>(</rp><rt>%s</rt><rp>)</rp></ruby>', kanji, yomi));
-			//furiganized[key] = furiganized[key].replace(ruby_rxp, sprintf('<ruby><rb>%s</rb><rp>(</rp><rt>%s</rt><rp>)</rp></ruby>', kanji, yomi));
-			console.log(furiganized[key])
-		} else {
-			console.log('no match')
-			console.log(kanji);
-			console.log(yomi);
-			bare_rxp = new RegExp(kanji, 'g');
-			furiganized[key] = furiganized[key].replace(bare_rxp, sprintf('<ruby><rb>%s</rb><rp>(</rp><rt>%s</rt><rp>)</rp></ruby>', kanji, yomi));
-			console.log(furiganized[key])
-		}
-	//}
+	if (furiganized[key].match(rxp)) {
+		furiganized[key] = furiganized[key].replace(new RegExp(sprintf('(%s)(?![^<rb><\/rb>]*<\/rb>)', traditionalHanzi + "|" + simplifiedHanzi), 'g'), sprintf('<ruby><rb>$1</rb><rp>(</rp><rt>%s</rt><rp>)</rp></ruby>', pinyin));
+	} else {
+		bare_rxp = new RegExp(traditionalHanzi + "|" + simplifiedHanzi, 'g');
+		furiganized[key] = furiganized[key].replace(bare_rxp, sprintf('<ruby><rb>$&</rb><rp>(</rp><rt>%s</rt><rp>)</rp></ruby>', pinyin));
+	}
 }
 
 //Extension requests listener. Handles communication between extension and the content scripts
@@ -223,22 +179,15 @@ chrome.runtime.onMessage.addListener(
 				
 
 				var taggedSortedByHanziLength = tagged.sort(function (a,b) {
-					
 															aTraditionalLength = (a && a.traditional) ? a.traditional.length : 0;
 															bTraditionalLength = (b && b.traditional) ? b.traditional.length : 0;
         													return ((aTraditionalLength < bTraditionalLength) ? -1 : (aTraditionalLength > bTraditionalLength) ? 1 : 0) * -1;
     											});
 
-				console.log(taggedSortedByHanziLength);
-
 				taggedSortedByHanziLength.forEach(function (t) {
 					if(t.matches && t.matches[0]) {
-						console.log("add ruby")
-
-						hanzi = t.traditional;
-						console.log(hanzi);
 						pinyin = t.matches[0].pinyinPretty || null;
-						addRuby(furiganized, hanzi, pinyin, key, processed);
+						addRuby(furiganized, t.traditional, t.simplified, pinyin, key, processed);
 					}
 					
 				});
