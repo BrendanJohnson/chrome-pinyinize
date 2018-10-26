@@ -1,3 +1,4 @@
+
 // var extBgPort = chrome.extension.connect();
 var userKanjiRegexp;
 var includeLinkText;
@@ -7,6 +8,7 @@ var submittedKanjiTextNodes = {};
 chrome.runtime.sendMessage({message: "config_values_request"}, function(response) {
 	userKanjiRegexp = new RegExp("[" + response.userKanjiList + "]");
 	includeLinkText = JSON.parse(response.includeLinkText);
+	toggleFurigana();
 	//Init anything for the page?
 });
 
@@ -36,7 +38,7 @@ function scanForKanjiTextNodes() {
 }
 
 function submitKanjiTextNodes(keepAllRuby) {
-	var msgData = {message: "text_to_furiganize", keepAllRuby: keepAllRuby};
+	var msgData = {message: "text_to_pinyinize", keepAllRuby: keepAllRuby};
 	msgData.textToFuriganize = {};
 	var strLength = 0;
 	for (key in kanjiTextNodes) {
@@ -95,8 +97,6 @@ function isEmpty(obj) {
 }
 
 function toggleFurigana() {
-	console.log('Toggling furigana');
-	console.log(document.body.hasAttribute("fiprocessed"));
 	if (document.body.hasAttribute("fiprocessed")) {
 		revertRubies();
 		chrome.runtime.sendMessage({message: "reset_page_action_icon"}, function(response) {});	//icon can only be changed by background page
@@ -104,7 +104,6 @@ function toggleFurigana() {
 	} else if (document.body.hasAttribute("fiprocessing")) {
 		//alert("Wait a sec, still awaiting a reply from the furigana server.");
 	} else {
-		//chrome.runtime.sendMessage({message: "execute_css_fontsize_fix_for_rt"}, function(response) {});	//send a request to have "css_fontsize_fix_for_rt.js" executed on this page
 		kanjiTextNodes = scanForKanjiTextNodes();
 		if (!isEmpty(kanjiTextNodes)) {
 			document.body.setAttribute("fiprocessed", "true");

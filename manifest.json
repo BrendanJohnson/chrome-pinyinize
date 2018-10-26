@@ -1,27 +1,23 @@
 {
-	"name": "Pinyinize",
-	"version": "0.9",
+	"name": "Pinyin Reader",
+	"version": "1.1.0",
 	"manifest_version": 2,
 	"background": {
-	  "scripts": ["lib/chinese-tokenizer.js", "lib/jquery-2.0.2.js", "lib/sprintf.min.js", "lib/igo.min.js", "lib/zip.min.js", "lib/wanakana.min.js", "background.js", "lib/diff.js"],
+	  "scripts": ["lib/chinese-tokenizer.js", "lib/jquery-2.0.2.js", "lib/sprintf.min.js", "lib/igo.min.js", "background.js", "lib/diff.js"],
 	  "persistent": false
 	},
-	"content_scripts": [ {
-		"js": ["hanzi_detect.js"],
-		"matches": ["http://*/*", "https://*/*"]
-	} ],
-	"description": "Adds pinyin or tone-only captions above Chinese Hanzi script",
-	"page_action": {
-		"default_title": "Toggle Pinyin"
-	},
-	"permissions": ["http://*/*", "https://*/*", "activeTab"],
+	"browser_action": {},
+	"description": "Adds pinyin captions above Chinese Hanzi script",
+	"icons": { "48": "img/icon_active_48.png",
+          	"128": "img/icon_128.png" },
+	"permissions": ["tabs", "activeTab", "storage"],
 	"commands": {
-		"toggle-furigana": {
+		"toggle-pinyin": {
 			"suggested_key": {
 				"default": "Alt+Shift+F",
 				"mac": "Command+Shift+Y"
 			},
-			"description": "Toggle furigana"
+			"description": "Toggle Pinyin"
 		}
 	}
 }

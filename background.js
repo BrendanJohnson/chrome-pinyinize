@@ -1,21 +1,9 @@
-var dicfiles = ['char.category', 'code2category', 'word2id', 'word.dat', 'word.ary.idx', 'word.inf', 'matrix.bin'];
-var tagger = null;
 var chineseTagger = null;
 var furiganized = {};
-var exceptions = null;
-var processed = [];
-
 
 //initialize variables
 if (!localStorage) 
 	console.log("Error: localStorage not available to background page. Has local storage been disabled in this instance of Chrome?");
-
-if (localStorage.getItem("user_kanji_list") === null) {
-	console.log("The localStorage \"user_kanji_list\" value was null. It will be initialised to the installation default list.");
-	var defaultUserKanjiList = "日一国会人年大十二本中長出三同時政事自行社見月分議後前民生連五発間対上部東者党地合市業内相方四定今回新場金員九入選立開手米力学問高代明実円関決子動京全目表戦経通外最言氏現理調体化田当八六約主題下首意法不来作性的要用制治度務強気小七成期公持野協取都和統以機平総加山思家話世受区領多県続進正安設保改数記院女初北午指権心界支第産結百派点教報済書府活原先共得解名交資予川向際査勝面委告軍文反元重近千考判認画海参売利組知案道信策集在件団別物側任引使求所次水半品昨論計死官増係感特情投示変打男基私各始島直両朝革価式確村提運終挙果西勢減台広容必応演電歳住争談能無再位置企真流格有疑口過局少放税検藤町常校料沢裁状工建語球営空職証土与急止送援供可役構木割聞身費付施切由説転食比難防補車優夫研収断井何南石足違消境神番規術護展態導鮮備宅害配副算視条幹独警宮究育席輸訪楽起万着乗店述残想線率病農州武声質念待試族象銀域助労例衛然早張映限親額監環験追審商葉義伝働形景落欧担好退準賞訴辺造英被株頭技低毎医復仕去姿味負閣韓渡失移差衆個門写評課末守若脳極種美岡影命含福蔵量望松非撃佐核観察整段横融型白深字答夜製票況音申様財港識注呼渉達";
-	localStorage.setItem("user_kanji_list", defaultUserKanjiList);
-}
-var userKanjiRegexp = new RegExp("[" + localStorage.getItem("user_kanji_list") + "]");
 
 if (localStorage.getItem("include_link_text") === null) {
 	console.log("The localStorage \"include_link_text\" value was null. It will be initialised to true.");
@@ -34,72 +22,33 @@ if (localStorage.getItem("filter_okurigana") === null) {
 	localStorage.setItem("filter_okurigana", false);	//the default value for showing translations
 }
 
-//initialize IGO-JS
-console.log('Attempting to load dictionary')
-igo.getServerFileToArrayBufffer("resources/ipadic.zip", function(buffer) {
-	console.log('Loaded IPADIC')
-	try {
-		var blob = new Blob([new Uint8Array(buffer)]);
-		var reader = new FileReader();
-		reader.onload = function(e) {
-			var dic = Zip.inflate(new Uint8Array(reader.result))
-			tagger = loadTagger(dic);
-		}
-		reader.readAsArrayBuffer(blob);
-	} catch(e) {
-		console.error(e.toString());
-	}
-});
-
-$.getJSON( "resources/exceptions.json", function(data) {
-	exceptions = data;
-});
-
 // initialize chinese-tokenizer
 igo.getServerFileToArrayBufffer("resources/cedict_ts.u8", function(buffer) {
-	console.log('Loaded CEDICT')
 	try {
 		var blob = new Blob([new Uint8Array(buffer)]);
 		var reader = new FileReader();
 		reader.onload = function(e) {
-			//var dic = new Uint8Array(reader.result)
-			//tagger = loadTagger(dic);
-			console.log('Finished Reading')
-			//console.log(reader.result);
 			chineseTagger = ChineseTokenizer.load(reader.result);
-			//console.log(chineseTagger('我是中国人。'));
 		}
 		reader.readAsText(blob);
 	} catch(e) {
 		console.error(e.toString());
 	}
-
 })
-
-
 
 /*****************
  *	Functions
  *****************/
 
-function loadTagger(dicdir) {
-	var files = new Array();
-	for(var i=0;i<dicfiles.length;++i) {
-		files[dicfiles[i]] = dicdir.files[dicfiles[i]].inflate();
+function addRuby(furiganized, traditionalHanzi, simplifiedHanzi, pinyin, key) {
+	var rxp = new RegExp(sprintf('<ruby><rb>(.+(%s|%s)|((%s|%s).{1,9})|(.{1,9}(%s|%s).{1,9}))<\\/rb><rp>\\(<\\/rp><rt>(.+)<\\/rt><rp>\\)<\\/rp><\\/ruby>', traditionalHanzi, simplifiedHanzi, traditionalHanzi, simplifiedHanzi, traditionalHanzi, simplifiedHanzi), 'g');
+
+	if (furiganized[key].match(rxp)) {
+		furiganized[key] = furiganized[key].replace(new RegExp(sprintf('(%s)(?![^<rb><\/rb>]*<\/rb>)', traditionalHanzi + "|" + simplifiedHanzi), 'g'), sprintf('<ruby><rb>$1</rb><rp>(</rp><rt>%s</rt><rp>)</rp></ruby>', pinyin));
+	} else {
+		bare_rxp = new RegExp(traditionalHanzi + "|" + simplifiedHanzi, 'g');
+		furiganized[key] = furiganized[key].replace(bare_rxp, sprintf('<ruby><rb>$&</rb><rp>(</rp><rt>%s</rt><rp>)</rp></ruby>', pinyin));
 	}
-
-	var category = new igo.CharCategory(files['code2category'], files['char.category']);
-	var wdc = new igo.WordDic(files['word2id'], files['word.dat'], files['word.ary.idx'], files['word.inf']);
-	var unk = new igo.Unknown(category);
-	var mtx = new igo.Matrix(files['matrix.bin']);
-	return new igo.Tagger(wdc, unk, mtx);
-}
-
-function enableTabForFI(tab) {
-	chrome.pageAction.setIcon({path: {"19": "img/icons/furigana_inactive_38.png","38": "img/icons/furigana_inactive_76.png"}, tabId: tab.id});
-	chrome.pageAction.setTitle({title: "Insert furigana", tabId: tab.id});
-	chrome.pageAction.show(tab.id);
-	chrome.tabs.executeScript(tab.id, {file: "text_to_furigana_dom_parse.js"});
 }
 
 function utf8_encode (string) {
@@ -125,58 +74,28 @@ function utf8_encode (string) {
  *	Chrome events
  *****************/
 
-//Page action listener
-chrome.pageAction.onClicked.addListener(function(tab) {
-	chrome.tabs.executeScript(tab.id, {code:"toggleFurigana();"});
+// Initialize the browser script on the page
+chrome.browserAction.onClicked.addListener(function(tab) {
+	chrome.tabs.executeScript(tab.id, {file: "text_to_furigana_dom_parse.js"});
 });
 
-chrome.commands.onCommand.addListener(function(command) {
-	chrome.tabs.executeScript(null, {code:"toggleFurigana();"});
-});
+// Listen to a change in the tab status
+chrome.tabs.onUpdated.addListener( function (tabId, changeInfo, tab) {
+  if (changeInfo.status == 'complete') {
+  	chrome.browserAction.setIcon({path: {"48": "img/icon_inactive_48.png"}, tabId: tab.id});
+  }
+})
 
-function addRuby(furiganized, traditionalHanzi, simplifiedHanzi, pinyin, key) {
-	// switch(localStorage.getItem("furigana_display")) {
-	// 	case "hira":
-	// 		yomi = wanakana.toHiragana(yomi);
-	// 		break;
-	// 	case "roma":
-	// 		yomi = wanakana.toRomaji(yomi);
-	// 		break;
-	// 	default:
-	// 		break;
-	// }
-	var rxp = new RegExp(sprintf('<ruby><rb>(.+(%s|%s)|((%s|%s).{1,9})|(.{1,9}(%s|%s).{1,9}))<\\/rb><rp>\\(<\\/rp><rt>(.+)<\\/rt><rp>\\)<\\/rp><\\/ruby>', traditionalHanzi, simplifiedHanzi, traditionalHanzi, simplifiedHanzi, traditionalHanzi, simplifiedHanzi), 'g');
-
-	if (furiganized[key].match(rxp)) {
-		furiganized[key] = furiganized[key].replace(new RegExp(sprintf('(%s)(?![^<rb><\/rb>]*<\/rb>)', traditionalHanzi + "|" + simplifiedHanzi), 'g'), sprintf('<ruby><rb>$1</rb><rp>(</rp><rt>%s</rt><rp>)</rp></ruby>', pinyin));
-	} else {
-		bare_rxp = new RegExp(traditionalHanzi + "|" + simplifiedHanzi, 'g');
-		furiganized[key] = furiganized[key].replace(bare_rxp, sprintf('<ruby><rb>$&</rb><rp>(</rp><rt>%s</rt><rp>)</rp></ruby>', pinyin));
-	}
-}
-
-//Extension requests listener. Handles communication between extension and the content scripts
+// Listen to other events
 chrome.runtime.onMessage.addListener(
 	function(request, sender, sendResponseCallback) {
 		if (request.message == "config_values_request") {
 			sendResponseCallback({userKanjiList: localStorage.getItem("user_kanji_list"), includeLinkText: localStorage.getItem("include_link_text")});
-		} else if (request.message == "init_tab_for_fi") {
-			enableTabForFI(sender.tab);
-		} else if (request.message == 'text_to_furiganize') {
+		} else if (request.message == 'text_to_pinyinize') {
 			furiganized = {};
 			for (key in request.textToFuriganize) {
-				console.log('Furiganize');
-				console.log(request.textToFuriganize[key]);
 				furiganized[key] = request.textToFuriganize[key];
-				//tagged = tagger.parse(request.textToFuriganize[key]);
-				//console.log(tagged)
-				tagged = chineseTagger(request.textToFuriganize[key]);
-				processed = [];
-				var numeric = false;
-				var numeric_yomi = exceptions;
-				var numeric_kanji = '';
-
-				
+				tagged = chineseTagger(request.textToFuriganize[key]);	
 
 				var taggedSortedByHanziLength = tagged.sort(function (a,b) {
 															aTraditionalLength = (a && a.traditional) ? a.traditional.length : 0;
@@ -187,60 +106,20 @@ chrome.runtime.onMessage.addListener(
 				taggedSortedByHanziLength.forEach(function (t) {
 					if(t.matches && t.matches[0]) {
 						pinyin = t.matches[0].pinyinPretty || null;
-						addRuby(furiganized, t.traditional, t.simplified, pinyin, key, processed);
+						addRuby(furiganized, t.traditional, t.simplified, pinyin, key);
 					}
 					
 				});
-
-				// tagged.forEach(function(t) {
-				// 	if (t.surface.match(/[\u3400-\u9FBF]/)) {
-				// 		kanji = t.surface;
-				// 		yomi = t.feature.split(',')[t.feature.split(',').length - 2];
-
-				// 		if (JSON.parse(localStorage.getItem("filter_okurigana"))) {
-				// 			diff = JsDiff.diffChars(kanji, wanakana.toHiragana(yomi));
-				// 			kanjiFound = false;
-				// 			yomiFound = false;
-				// 			diff.forEach(function(part){
-				// 				if (part.added) { 
-				// 					yomi = wanakana.toKatakana(part.value);
-				// 					yomiFound = true;
-				// 				}
-				// 				if (part.removed) { 
-				// 					kanji = part.value;
-				// 					kanjiFound = true;
-				// 				}
-				// 				if (kanjiFound && yomiFound) {
-				// 					addRuby(furiganized, kanji, yomi, key, processed);
-				// 					kanjiFound = false;
-				// 					yomiFound = false;
-				// 				}
-				// 			});
-				// 		} else {
-				// 			addRuby(furiganized, kanji, yomi, key, processed);
-				// 		}
-				// 	}
-				// });
 			}
 			chrome.tabs.sendMessage(sender.tab.id, {furiganizedTextNodes: furiganized});
 		} else if (request.message == "show_page_processed") {
-			chrome.pageAction.setIcon({path: {"19": "img/icons/furigana_active_38.png","38": "img/icons/furigana_active_76.png"}, tabId: sender.tab.id});
-			chrome.pageAction.setTitle({title: "Remove furigana", tabId: sender.tab.id});
+			// This runs whenever the plugin is activated
+			chrome.browserAction.setIcon({path: {"48": "img/icon_active_48.png"}, tabId: sender.tab.id});
+			chrome.browserAction.setTitle({title: "Remove Pinyin", tabId: sender.tab.id});
 		} else if (request.message == "reset_page_action_icon") {
-			chrome.pageAction.setIcon({path: {"19": "img/icons/furigana_inactive_38.png","38": "img/icons/furigana_inactive_76.png"}, tabId: sender.tab.id});
-			chrome.pageAction.setTitle({title: "Insert furigana", tabId: sender.tab.id});
-		} else if (request.message == "execute_css_fontsize_fix_for_rt") {
-			chrome.tabs.executeScript(sender.tab.id, {file: "css_fontsize_fix_for_rt.js"/*, allFrames: false*/});
-		} else {
-			console.log("Programming error: a request with the unexpected \"message\" value \"" + request.message + "\" was received in the background page.");
+			// This runs whenever the plugin is turned off
+			chrome.browserAction.setIcon({path: {"48": "img/icon_inactive_48.png"}, tabId: sender.tab.id});
+			chrome.browserAction.setTitle({title: "Show Pinyin", tabId: sender.tab.id});
 		}
 	}
 );
-
-//Storage events
-window.addEventListener("storage",
-	function(e) {
-		if (e.key == "user_kanji_list") {	//re-initialize the data in each tab (when they reload or they move to a new page)
-			userKanjiRegexp = new RegExp("[" + localStorage.getItem("user_kanji_list") + "]");
-		}
-	}, false);
