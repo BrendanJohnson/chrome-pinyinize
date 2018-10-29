@@ -1,26 +1,15 @@
 var chineseTagger = null;
+var configItems = null;
 var furiganized = {};
+var openTabs = [];
 
-//initialize variables
-if (!localStorage) 
-	console.log("Error: localStorage not available to background page. Has local storage been disabled in this instance of Chrome?");
-
-if (localStorage.getItem("include_link_text") === null) {
-	console.log("The localStorage \"include_link_text\" value was null. It will be initialised to true.");
-	localStorage.setItem("include_link_text", true);	//the default value for including links
-}
-if (localStorage.getItem("furigana_display") === null) {
-	console.log("The localStorage \"furigana_display\" value was null. It will be initialised to hiragana.");
-	localStorage.setItem("furigana_display", "hira");	//the default value for including links
-}
-if (localStorage.getItem("show_translations") === null) {
-	console.log("The localStorage \"show_translations\" value was null. It will be initialised to false.");
-	localStorage.setItem("show_translations", true);	//the default value for showing translations
-}
-if (localStorage.getItem("filter_okurigana") === null) {
-	console.log("The localStorage \"filter_okurigana\" value was null. It will be initialised to Yes.");
-	localStorage.setItem("filter_okurigana", false);	//the default value for showing translations
-}
+// initialize config
+chrome.storage.sync.get({
+	    		includeLinkText: true,
+	    		annotationType: "pinyin"
+	  		}, function (items) {
+	  			configItems = items;
+	  		})
 
 // initialize chiense-tokenizer using fetch
 let filesToLoad = ['resources/cedict_ts.u8', 'resources/cccanto-webdist.txt', 'resources/cccedict-canto-readings-150923.txt', ];
@@ -36,8 +25,7 @@ Promise.all(filesToLoad.map(function (fileName) {
  *	Functions
  *****************/
 
-function addRuby(furiganized, traditionalHanzi, simplifiedHanzi, pinyin, jyutping, toneMarks, key) {
-	var annotation = jyutping;
+function addRuby(furiganized, traditionalHanzi, simplifiedHanzi, annotation, key) {
 	var rxp = new RegExp(sprintf('<ruby><rb>(.+(%s|%s)|((%s|%s).{1,9})|(.{1,9}(%s|%s).{1,9}))<\\/rb><rp>\\(<\\/rp><rt>(.+)<\\/rt><rp>\\)<\\/rp><\\/ruby>', traditionalHanzi, simplifiedHanzi, traditionalHanzi, simplifiedHanzi, traditionalHanzi, simplifiedHanzi), 'g');
 
 	if (furiganized[key].match(rxp)) {
@@ -87,8 +75,21 @@ chrome.tabs.onUpdated.addListener( function (tabId, changeInfo, tab) {
 chrome.runtime.onMessage.addListener(
 	function(request, sender, sendResponseCallback) {
 		if (request.message == "config_values_request") {
-			sendResponseCallback({userKanjiList: localStorage.getItem("user_kanji_list"), includeLinkText: localStorage.getItem("include_link_text")});
-		} else if (request.message == 'text_to_pinyinize') {
+			sendResponseCallback(configItems);
+		} else if (request.message == "config_updated") {
+			if(openTabs.length) {
+				openTabs.forEach(function(openTab) {
+						chrome.storage.sync.get({
+				    		includeLinkText: true,
+				    		annotationType: "pinyin"
+				  		}, function(items) {
+				  				configItems = items;
+				  				chrome.tabs.sendMessage(openTab.id, {updateConfig: configItems});
+						 });
+				})
+			}
+		}
+			else if (request.message == 'text_to_pinyinize') {
 			furiganized = {};
 			for (key in request.textToFuriganize) {
 				furiganized[key] = request.textToFuriganize[key];
@@ -101,13 +102,11 @@ chrome.runtime.onMessage.addListener(
     											});
 
 				taggedSortedByHanziLength.concat(tagged.singles).forEach(function (t) {
-					// Add code to sort matches by those that have a Cantonese reading available
-
 					if(t.matches && t.matches[0]) {
-
+						// Annotation types
 						pinyin = t.matches[0].pinyinPretty || null;
 						jyutping = t.matches[0].jyutping || null;
-						toneMarks = ((t.matches[0].pinyin || "").match(/[1-5]/g) || []).map(function (toneNumber) {
+						pinyin_tones = ((t.matches[0].pinyin || "").match(/[1-5]/g) || []).map(function (toneNumber) {
 							return {
 								1: "̱",
 								2: "̗",
@@ -115,10 +114,9 @@ chrome.runtime.onMessage.addListener(
 								4: "̖"
 							}[toneNumber] || " ";
 						}).join(" ");
-						
-						addRuby(furiganized, t.traditional, t.simplified, pinyin, jyutping, toneMarks, key);
+
+						addRuby(furiganized, t.traditional, t.simplified, this[configItems.annotationType], key);
 					}
-					
 				});
 			}
 			chrome.tabs.sendMessage(sender.tab.id, {furiganizedTextNodes: furiganized});
@@ -126,10 +124,14 @@ chrome.runtime.onMessage.addListener(
 			// This runs whenever the plugin is activated
 			chrome.browserAction.setIcon({path: {"48": "img/icon_active_48.png"}, tabId: sender.tab.id});
 			chrome.browserAction.setTitle({title: "Remove Pinyin", tabId: sender.tab.id});
+			openTabs.push(sender.tab);
 		} else if (request.message == "reset_page_action_icon") {
 			// This runs whenever the plugin is turned off
 			chrome.browserAction.setIcon({path: {"48": "img/icon_inactive_48.png"}, tabId: sender.tab.id});
 			chrome.browserAction.setTitle({title: "Show Pinyin", tabId: sender.tab.id});
+			openTabs = openTabs.filter(function(tab) {
+			  return tab.id !== sender.tab.id;
+			})
 		}
 	}
 );

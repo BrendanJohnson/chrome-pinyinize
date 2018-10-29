@@ -1,15 +1,11 @@
-
-// var extBgPort = chrome.extension.connect();
-var userKanjiRegexp;
-var includeLinkText;
+var includeLinkText, annotationType;
 var kanjiTextNodes = {};	//This object will be used like a hash
 var submittedKanjiTextNodes = {};
 
 chrome.runtime.sendMessage({message: "config_values_request"}, function(response) {
-	userKanjiRegexp = new RegExp("[" + response.userKanjiList + "]");
-	includeLinkText = JSON.parse(response.includeLinkText);
+	includeLinkText = response.includeLinkText;
+	annotationType = response.annotationType;
 	toggleFurigana();
-	//Init anything for the page?
 });
 
 /*****************
@@ -18,7 +14,6 @@ chrome.runtime.sendMessage({message: "config_values_request"}, function(response
 function scanForKanjiTextNodes() {
 	//Scan all text for /[\u3400-\u9FBF]/, then add each text node that isn't made up only of kanji only in the user's simple kanji list
 	var xPathPattern = '//*[not(ancestor-or-self::head) and not(ancestor::select) and not(ancestor-or-self::script)and not(ancestor-or-self::ruby)' + (includeLinkText ? '' : ' and not(ancestor-or-self::a)') + ']/text()[normalize-space(.) != ""]';
-	console.log(xPathPattern);
 	var foundNodes = {};
 	var maxTextLength = 2730;	//There's a input buffer length limit in Mecab.
 	try {
@@ -96,8 +91,16 @@ function isEmpty(obj) {
 	return true;
 }
 
-function toggleFurigana() {
-	if (document.body.hasAttribute("fiprocessed")) {
+function toggleFurigana(refresh) {
+	if (refresh) {
+		revertRubies();
+		kanjiTextNodes = scanForKanjiTextNodes();
+		if (!isEmpty(kanjiTextNodes)) {
+			document.body.setAttribute("fiprocessed", "true");
+			submitKanjiTextNodes(false);	//The background page will respond with data including a "furiganizedTextNodes" member, see below.
+		} 
+	}
+	else if (document.body.hasAttribute("fiprocessed")) {
 		revertRubies();
 		chrome.runtime.sendMessage({message: "reset_page_action_icon"}, function(response) {});	//icon can only be changed by background page
 		kanjiTextNodes = {};
@@ -109,8 +112,27 @@ function toggleFurigana() {
 			document.body.setAttribute("fiprocessed", "true");
 			submitKanjiTextNodes(false);	//The background page will respond with data including a "furiganizedTextNodes" member, see below.
 		} else {
-			alert("No text with kanji above your level found. Sorry, false alarm!");
+			alert("No Chinese script was found on this page!");
 		}
+	}
+	// Use a larger font-size when tones only are being dispalyed
+	if ((annotationType.indexOf("tones") > -1) && !document.querySelector('#pinyin-reader-rt-big')) {
+		var css = 'rt { font-size: 70%; }',
+	    head = document.head || document.getElementsByTagName('head')[0],
+	    style = document.createElement('style');
+
+		style.type = 'text/css';
+		style.id = 'pinyin-reader-rt-big';
+		if (style.styleSheet){
+		  // This is required for IE8 and below.
+		  style.styleSheet.cssText = css;
+		} else {
+		  style.appendChild(document.createTextNode(css));
+		}
+		head.appendChild(style);
+	}
+	else if (document.querySelector('#pinyin-reader-rt-big')) {
+		document.querySelector('#pinyin-reader-rt-big').parentNode.removeChild(document.querySelector('#pinyin-reader-rt-big'))
 	}
 }
 
@@ -135,8 +157,14 @@ chrome.runtime.onMessage.addListener(
 				kanjiTextNodes = {};	//clear the entire hash. Delete this logic if requests are processed in multiple batches.
 				document.body.removeAttribute("fiprocessing");
 				document.body.setAttribute("fiprocessed", "true");
+
 				chrome.runtime.sendMessage({message: "show_page_processed"}, function(response) {});
 			}
+		}
+		else if (request.updateConfig) {
+			includeLinkText = request.updateConfig.includeLinkText;
+			annotationType = request.updateConfig.annotationType;
+			toggleFurigana(true)
 		} else {
 			alert("Unexpected msg received from extension script: " + JSON.stringify(data).substr(0,200));
 		}
