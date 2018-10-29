@@ -22,32 +22,29 @@ if (localStorage.getItem("filter_okurigana") === null) {
 	localStorage.setItem("filter_okurigana", false);	//the default value for showing translations
 }
 
-// initialize chinese-tokenizer
-igo.getServerFileToArrayBufffer("resources/cedict_ts.u8", function(buffer) {
-	try {
-		var blob = new Blob([new Uint8Array(buffer)]);
-		var reader = new FileReader();
-		reader.onload = function(e) {
-			chineseTagger = ChineseTokenizer.load(reader.result);
-		}
-		reader.readAsText(blob);
-	} catch(e) {
-		console.error(e.toString());
-	}
-})
+// initialize chiense-tokenizer using fetch
+let filesToLoad = ['resources/cedict_ts.u8', 'resources/cccanto-webdist.txt', 'resources/cccedict-canto-readings-150923.txt', ];
+
+Promise.all(filesToLoad.map(function (fileName) {
+	return fetch(chrome.runtime.getURL(fileName)).then((response) => response.text());
+}))
+.then(function(dictionaries) {
+    chineseTagger = ChineseTokenizer.load([dictionaries[0], dictionaries[1]], [dictionaries[1], dictionaries[2]]);
+});
 
 /*****************
  *	Functions
  *****************/
 
-function addRuby(furiganized, traditionalHanzi, simplifiedHanzi, pinyin, key) {
+function addRuby(furiganized, traditionalHanzi, simplifiedHanzi, pinyin, jyutping, toneMarks, key) {
+	var annotation = jyutping;
 	var rxp = new RegExp(sprintf('<ruby><rb>(.+(%s|%s)|((%s|%s).{1,9})|(.{1,9}(%s|%s).{1,9}))<\\/rb><rp>\\(<\\/rp><rt>(.+)<\\/rt><rp>\\)<\\/rp><\\/ruby>', traditionalHanzi, simplifiedHanzi, traditionalHanzi, simplifiedHanzi, traditionalHanzi, simplifiedHanzi), 'g');
 
 	if (furiganized[key].match(rxp)) {
-		furiganized[key] = furiganized[key].replace(new RegExp(sprintf('(%s)(?![^<rb><\/rb>]*<\/rb>)', traditionalHanzi + "|" + simplifiedHanzi), 'g'), sprintf('<ruby><rb>$1</rb><rp>(</rp><rt>%s</rt><rp>)</rp></ruby>', pinyin));
+		furiganized[key] = furiganized[key].replace(new RegExp(sprintf('(%s)(?![^<rb><\/rb>]*<\/rb>)', traditionalHanzi + "|" + simplifiedHanzi), 'g'), sprintf('<ruby><rb>$1</rb><rp>(</rp><rt>%s</rt><rp>)</rp></ruby>', annotation));
 	} else {
 		bare_rxp = new RegExp(traditionalHanzi + "|" + simplifiedHanzi, 'g');
-		furiganized[key] = furiganized[key].replace(bare_rxp, sprintf('<ruby><rb>$&</rb><rp>(</rp><rt>%s</rt><rp>)</rp></ruby>', pinyin));
+		furiganized[key] = furiganized[key].replace(bare_rxp, sprintf('<ruby><rb>$&</rb><rp>(</rp><rt>%s</rt><rp>)</rp></ruby>', annotation));
 	}
 }
 
@@ -97,16 +94,29 @@ chrome.runtime.onMessage.addListener(
 				furiganized[key] = request.textToFuriganize[key];
 				tagged = chineseTagger(request.textToFuriganize[key]);	
 
-				var taggedSortedByHanziLength = tagged.sort(function (a,b) {
-															aTraditionalLength = (a && a.traditional) ? a.traditional.length : 0;
-															bTraditionalLength = (b && b.traditional) ? b.traditional.length : 0;
-        													return ((aTraditionalLength < bTraditionalLength) ? -1 : (aTraditionalLength > bTraditionalLength) ? 1 : 0) * -1;
+				var taggedSortedByHanziLength = tagged.result.sort(function (a,b) {
+													aTraditionalLength = (a && a.traditional) ? a.traditional.length : 0;
+													bTraditionalLength = (b && b.traditional) ? b.traditional.length : 0;
+        											return ((aTraditionalLength < bTraditionalLength) ? -1 : (aTraditionalLength > bTraditionalLength) ? 1 : 0) * -1;
     											});
 
-				taggedSortedByHanziLength.forEach(function (t) {
+				taggedSortedByHanziLength.concat(tagged.singles).forEach(function (t) {
+					// Add code to sort matches by those that have a Cantonese reading available
+
 					if(t.matches && t.matches[0]) {
+
 						pinyin = t.matches[0].pinyinPretty || null;
-						addRuby(furiganized, t.traditional, t.simplified, pinyin, key);
+						jyutping = t.matches[0].jyutping || null;
+						toneMarks = ((t.matches[0].pinyin || "").match(/[1-5]/g) || []).map(function (toneNumber) {
+							return {
+								1: "̱",
+								2: "̗",
+								3: "̬",
+								4: "̖"
+							}[toneNumber] || " ";
+						}).join(" ");
+						
+						addRuby(furiganized, t.traditional, t.simplified, pinyin, jyutping, toneMarks, key);
 					}
 					
 				});
