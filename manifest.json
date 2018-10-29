@@ -1,9 +1,9 @@
 {
 	"name": "Pinyin Reader",
-	"version": "1.4.0",
+	"version": "1.4.1",
 	"manifest_version": 2,
 	"background": {
-	  "scripts": ["background.js", "lib/chinese-tokenizer.js", "lib/sprintf.min.js"],
+	  "scripts": ["background.js", "lib/chinese-tokenizer.js", "lib/sprintf.js"],
 	  "persistent": false
 	},
 	"browser_action": {},
