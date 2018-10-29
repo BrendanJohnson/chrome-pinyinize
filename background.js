@@ -114,6 +114,16 @@ chrome.runtime.onMessage.addListener(
 								4: "̖"
 							}[toneNumber] || " ";
 						}).join(" ");
+						jyutping_tones = ((t.matches[0].jyutping || "").match(/[1-6]/g) || []).map(function (toneNumber) {
+							return {
+								1: "ˍ",
+								2: "̗",
+								3: "˳",
+								4: "̖",
+								5: "̬",
+								6: "𖾘"
+							}[toneNumber] || " ";
+						}).join(" ");
 
 						addRuby(furiganized, t.traditional, t.simplified, this[configItems.annotationType], key);
 					}
